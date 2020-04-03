@@ -58,7 +58,7 @@ __global__ void histoToCDF(unsigned int* input, float* output, int iw, int ih) {
   
   //**Perform the scan**//
   if (i < HISTOGRAM_LENGTH) {
-    T[i] = (float) input[i];
+    T[threadIdx.x] = (float) input[i];
   }
   
   /*Reduction kernel*/
@@ -89,7 +89,7 @@ __global__ void histoToCDF(unsigned int* input, float* output, int iw, int ih) {
   __syncthreads();
   
   if (i < HISTOGRAM_LENGTH) {
-    output[i] = T[i] / (1.0 * iw * ih);
+    output[i] = T[threadIdx.x] / (1.0 * iw * ih);
   }
 }
 
@@ -140,8 +140,8 @@ int main(int argc, char **argv) {
   hostOutputImageData = wbImage_getData(outputImage);
   
   /*Define the dimension of the block and the grid*/
-  dim3 dimGrid((ceil(imageWidth * imageHeight * imageChannels) / HISTOGRAM_LENGTH), 1, 1);
-  dim3 dimBlock(HISTOGRAM_LENGTH);
+  dim3 dimGrid(ceil(imageWidth * imageHeight * imageChannels * 1.0 / HISTOGRAM_LENGTH), 1, 1);
+  dim3 dimBlock(HISTOGRAM_LENGTH, 1, 1);
   
   /*Memory allocation in the device*/
   cudaMalloc((void**) &deviceInputImageData, imageWidth * imageHeight * imageChannels * sizeof(float));
@@ -150,7 +150,6 @@ int main(int argc, char **argv) {
   cudaMalloc((void**) &deviceGrayData, imageWidth * imageHeight * sizeof(unsigned char));
   cudaMalloc((void**) &deviceHisto, HISTOGRAM_LENGTH * sizeof(unsigned int));
   cudaMalloc((void**) &deviceCDF, HISTOGRAM_LENGTH * sizeof(float));
-  cudaMalloc((void**) &deviceOutputImageData, imageWidth * imageHeight * imageChannels * sizeof(float));
   
   /*Memory copy from the host to the device*/
   cudaMemcpy(deviceInputImageData, hostInputImageData, imageWidth * imageHeight * imageChannels * sizeof(float), cudaMemcpyHostToDevice);
@@ -158,6 +157,7 @@ int main(int argc, char **argv) {
   /*Memory set in the device*/
   cudaMemset((void*) deviceHisto, 0, HISTOGRAM_LENGTH * sizeof(unsigned int));
   cudaMemset((void*) deviceCDF, 0, HISTOGRAM_LENGTH * sizeof(float));
+  
   /*Process the image*/
   floatToUChar<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceUCharImageData, imageWidth, imageHeight, imageChannels);
   cudaDeviceSynchronize();
